@@ -1,0 +1,34 @@
+#!/usr/bin/with-contenv bash
+
+cd /app/gist || exit;
+
+# set default values for variables
+declare -A GIST_CONF
+
+GIST_CONF[DB_HOST]=${DB_HOST:-mariadb}
+GIST_CONF[DB_PORT]=${DB_PORT:-3306}
+GIST_CONF[DB_NAME]=${DB_NAME:-peq}
+GIST_CONF[DB_USER]=${DB_USER:-root}
+GIST_CONF[DB_PASSWORD]=${DB_PASSWORD:-}
+GIST_CONF[DB_TIMEOUT]=${DB_TIMEOUT:-30}
+GIST_CONF[KEY]=${KEY:-$(date +%s | sha256sum | base64 | head -c 32)}
+
+if [ ! -f "/config/config.yml" ]; then
+	cp /app/gist/app/config/config.yml.dist /config/config.yml
+	sed -i "s|token: ThisTokenIsNotSoSecretChangeIt|token: '"${GIST_CONF[KEY]}"'|g" /config/config.yml
+	sed -i "s|path: data/git|path: /config/git|g" /config/config.yml
+
+	cp /app/gist/app/config/propel.yaml.dist-sqlite /config/propel.yaml
+	sed -i "s|DATABASE_PATH|/config/db.sqlite|g" /config/propel.yaml
+fi
+
+ln -sf /config/config.yml /app/gist/app/config/config.yml
+ln -sf /config/propel.yaml /app/gist/propel.yaml
+
+make update
+make propel
+
+# permissions
+chown -R abc:abc \
+	/config \
+	/app/gist
